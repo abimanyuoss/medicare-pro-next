@@ -306,6 +306,8 @@ export async function deleteMedicine(formData: FormData) {
 
 export async function createTransaction(formData: FormData) {
   const patientName = required(formData.get("patientName"), "Nama pasien");
+  const patientPhone = optional(formData.get("patientPhone"));
+  const patientAddress = optional(formData.get("patientAddress"));
   const serviceId = required(formData.get("serviceId"), "Layanan");
   const doctorId = required(formData.get("doctorId"), "Dokter");
   const date = toDate(formData.get("date"), "Tanggal");
@@ -346,13 +348,20 @@ export async function createTransaction(formData: FormData) {
     if (!service) throw new Error("Layanan tidak ditemukan atau tidak aktif");
     if (!doctor) throw new Error("Dokter tidak ditemukan atau tidak aktif");
 
+    const patientUpdateData = {
+      ...(patientPhone ? { phone: patientPhone } : {}),
+      ...(patientAddress ? { address: patientAddress } : {}),
+    };
+
     const patient = await tx.patient.upsert({
       where: {
         name: patientName,
       },
-      update: {},
+      update: patientUpdateData,
       create: {
         name: patientName,
+        phone: patientPhone,
+        address: patientAddress,
       },
     });
 

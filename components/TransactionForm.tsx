@@ -163,6 +163,33 @@ export default function TransactionForm({
         />
       </div>
 
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+        <div>
+          <label className="mb-1 block text-sm font-bold text-slate-700">
+            No. Telepon Pasien
+          </label>
+
+          <input
+            name="patientPhone"
+            type="tel"
+            placeholder="Opsional"
+            className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-blue-400 focus:ring-4 focus:ring-blue-100"
+          />
+        </div>
+
+        <div>
+          <label className="mb-1 block text-sm font-bold text-slate-700">
+            Alamat Pasien
+          </label>
+
+          <input
+            name="patientAddress"
+            placeholder="Opsional"
+            className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-blue-400 focus:ring-4 focus:ring-blue-100"
+          />
+        </div>
+      </div>
+
       {/* Layanan */}
       <div>
         <label className="mb-1 block text-sm font-bold text-slate-700">

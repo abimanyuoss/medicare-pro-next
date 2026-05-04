@@ -81,8 +81,12 @@ export default async function RiwayatPasienPage({
 
           <div className="rounded-2xl bg-slate-50 px-4 py-3 text-sm">
             <p className="font-bold text-slate-900">Kontak</p>
-            <p className="mt-1 text-slate-500">{patient.phone || "-"}</p>
-            <p className="text-slate-500">{patient.address || "-"}</p>
+            <p className="mt-1 text-slate-500">
+              Telepon: {patient.phone || "Belum diisi"}
+            </p>
+            <p className="text-slate-500">
+              Alamat: {patient.address || "Belum diisi"}
+            </p>
           </div>
         </div>
       </section>
