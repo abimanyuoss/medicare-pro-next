@@ -11,62 +11,26 @@ import {
   groupRevenueByDoctor,
   groupServiceDistribution,
 } from "@/lib/analytics";
-
-type CellValue = string | number | Date | null | undefined;
-type Sheet = {
-  name: string;
-  rows: CellValue[][];
-};
-
-function escapeXml(value: string) {
-  return value
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
-}
-
-function sheetName(name: string) {
-  return escapeXml(name.slice(0, 31));
-}
-
-function cell(value: CellValue) {
-  if (value instanceof Date) {
-    return `<Cell><Data ss:Type="String">${escapeXml(formatDate(value))}</Data></Cell>`;
-  }
-
-  if (typeof value === "number" && Number.isFinite(value)) {
-    return `<Cell><Data ss:Type="Number">${value}</Data></Cell>`;
-  }
-
-  return `<Cell><Data ss:Type="String">${escapeXml(String(value ?? ""))}</Data></Cell>`;
-}
-
-function worksheet(sheet: Sheet) {
-  const rows = sheet.rows
-    .map((row) => `<Row>${row.map(cell).join("")}</Row>`)
-    .join("");
-
-  return `<Worksheet ss:Name="${sheetName(sheet.name)}"><Table>${rows}</Table></Worksheet>`;
-}
-
-function workbook(sheets: Sheet[]) {
-  return `<?xml version="1.0"?>
-<?mso-application progid="Excel.Sheet"?>
-<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet"
-  xmlns:o="urn:schemas-microsoft-com:office:office"
-  xmlns:x="urn:schemas-microsoft-com:office:excel"
-  xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet"
-  xmlns:html="http://www.w3.org/TR/REC-html40">
-  <Styles>
-    <Style ss:ID="Default" ss:Name="Normal">
-      <Alignment ss:Vertical="Center"/>
-      <Font ss:FontName="Calibri" ss:Size="11"/>
-    </Style>
-  </Styles>
-  ${sheets.map(worksheet).join("")}
-</Workbook>`;
-}
+import {
+  accountingWorkbook,
+  blankRow,
+  creditCell,
+  dateCell,
+  debitCell,
+  type ExcelSheet,
+  headerCell,
+  moneyCell,
+  numberCell,
+  sectionRow,
+  statusCell,
+  subtitleRow,
+  textCell,
+  titleRow,
+  totalLabelCell,
+  totalMoneyCell,
+  totalNumberCell,
+  typeCell,
+} from "@/lib/excel-workbook";
 
 function ledgerEntry(status: TransactionStatus, amount: number) {
   if (status === TransactionStatus.LUNAS) {
@@ -101,21 +65,20 @@ export async function GET() {
     return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
   }
 
-  const [
-    monthTransactions,
-  ] = await Promise.all([
-    prisma.transaction.findMany({
-      where: {
-        date: {
-          gte: getStartOfMonth(),
-        },
+  const monthTransactions = await prisma.transaction.findMany({
+    where: {
+      date: {
+        gte: getStartOfMonth(),
       },
-      include: {
-        service: true,
-        doctor: true,
-      },
-    }),
-  ]);
+    },
+    orderBy: {
+      date: "asc",
+    },
+    include: {
+      service: true,
+      doctor: true,
+    },
+  });
 
   const monthlyRevenue = monthTransactions
     .filter((tx) => tx.status === TransactionStatus.LUNAS)
@@ -133,81 +96,154 @@ export async function GET() {
   ).length;
   const serviceData = groupServiceDistribution(monthTransactions);
   const doctorRevenue = groupRevenueByDoctor(monthTransactions);
+  const periodLabel = new Date().toLocaleDateString("id-ID", {
+    month: "long",
+    year: "numeric",
+  });
+  const exportDate = new Date();
+  let runningBalance = 0;
+  const journalRows = monthTransactions.map((tx) => {
+    const amount = Number(tx.amount);
+    const ledger = ledgerEntry(tx.status, amount);
+    runningBalance += ledger.debit - ledger.credit;
 
-  const sheets: Sheet[] = [
+    return [
+      dateCell(tx.date),
+      textCell(tx.code),
+      textCell(`${tx.patientName} - ${tx.service.name}`),
+      textCell(ledger.type === "Debit" ? "Kas" : ledger.type === "Kredit" ? "Piutang" : "Batal"),
+      debitCell(ledger.debit),
+      creditCell(ledger.credit),
+      moneyCell(runningBalance),
+      statusCell(tx.status.replace("_", " ")),
+    ];
+  });
+
+  const sheets: ExcelSheet[] = [
     {
       name: "Ringkasan",
+      columns: [190, 135, 280],
       rows: [
-        ["Metrik", "Nilai"],
-        ["Tanggal Export", formatDate(new Date())],
-        [
-          "Periode",
-          new Date().toLocaleDateString("id-ID", {
-            month: "long",
-            year: "numeric",
-          }),
-        ],
-        ["Transaksi Bulan Ini", monthTransactions.length],
-        ["Pendapatan Bulan Ini", monthlyRevenue],
-        ["Total Debit (Lunas)", monthlyDebit],
-        ["Total Kredit (Belum Lunas)", monthlyCredit],
-        ["Transaksi Batal", canceledTransactions],
-        ["Keterangan Debit", "Pembayaran lunas / uang masuk"],
-        ["Keterangan Kredit", "Tagihan belum lunas"],
-        ["Layanan Terpopuler", serviceData[0]?.name ?? "-"],
+        titleRow("Laporan Akuntansi MediCare Pro", 2),
+        subtitleRow(`Periode ${periodLabel} | Dicetak ${formatDate(exportDate)}`, 2),
+        blankRow(),
+        sectionRow("Ringkasan Utama", 2),
+        [headerCell("Metrik"), headerCell("Nilai"), headerCell("Catatan")],
+        [textCell("Transaksi Bulan Ini"), numberCell(monthTransactions.length), textCell("Semua status")],
+        [textCell("Pendapatan Bulan Ini"), moneyCell(monthlyRevenue), textCell("Hanya transaksi lunas")],
+        [textCell("Total Debit (Lunas)"), debitCell(monthlyDebit), textCell("Pembayaran lunas / uang masuk")],
+        [textCell("Total Kredit (Belum Lunas)"), creditCell(monthlyCredit), textCell("Tagihan belum lunas")],
+        [textCell("Transaksi Batal"), numberCell(canceledTransactions), textCell("Tidak masuk debit/kredit")],
+        [textCell("Layanan Terpopuler"), textCell(serviceData[0]?.name ?? "-"), textCell("Berdasarkan jumlah kunjungan")],
       ],
     },
     {
       name: "Kunjungan Layanan",
+      columns: [220, 120],
       rows: [
-        ["Layanan", "Jumlah Kunjungan"],
-        ...serviceData.map((item) => [item.name, item.value]),
+        titleRow("Kunjungan per Layanan", 1),
+        subtitleRow(`Periode ${periodLabel}`, 1),
+        blankRow(),
+        [headerCell("Layanan"), headerCell("Jumlah Kunjungan")],
+        ...serviceData.map((item) => [textCell(item.name), numberCell(item.value)]),
+        [totalLabelCell("TOTAL"), totalNumberCell(serviceData.reduce((sum, item) => sum + item.value, 0))],
       ],
     },
     {
       name: "Performa Dokter",
+      columns: [240, 150],
       rows: [
-        ["Dokter", "Pendapatan Bulan Ini"],
-        ...doctorRevenue.map((item) => [item.name, item.pendapatan]),
+        titleRow("Performa Dokter", 1),
+        subtitleRow(`Pendapatan lunas periode ${periodLabel}`, 1),
+        blankRow(),
+        [headerCell("Dokter"), headerCell("Pendapatan Bulan Ini")],
+        ...doctorRevenue.map((item) => [textCell(item.name), moneyCell(item.pendapatan)]),
+        [totalLabelCell("TOTAL"), totalMoneyCell(monthlyRevenue)],
+      ],
+    },
+    {
+      name: "Jurnal Keuangan",
+      columns: [95, 125, 280, 100, 120, 120, 120, 95],
+      rows: [
+        titleRow("Jurnal Keuangan", 7),
+        subtitleRow("Format debit/kredit dengan saldo berjalan", 7),
+        blankRow(),
+        [
+          headerCell("Tanggal"),
+          headerCell("No Bukti"),
+          headerCell("Keterangan"),
+          headerCell("Akun"),
+          headerCell("Debit"),
+          headerCell("Kredit"),
+          headerCell("Saldo"),
+          headerCell("Status"),
+        ],
+        ...journalRows,
+        [
+          textCell(""),
+          textCell(""),
+          textCell(""),
+          totalLabelCell("TOTAL"),
+          totalMoneyCell(monthlyDebit),
+          totalMoneyCell(monthlyCredit),
+          totalMoneyCell(runningBalance),
+          textCell(""),
+        ],
       ],
     },
     {
       name: "Detail Transaksi",
+      columns: [125, 145, 175, 200, 95, 105, 85, 120, 120, 120],
       rows: [
+        titleRow("Detail Transaksi Bulan Ini", 9),
+        subtitleRow("Kolom debit/kredit mengikuti status pembayaran transaksi", 9),
+        blankRow(),
         [
-          "No",
-          "Pasien",
-          "Layanan",
-          "Dokter",
-          "Tanggal",
-          "Status",
-          "Jenis",
-          "Debit",
-          "Kredit",
-          "Jumlah",
+          headerCell("No"),
+          headerCell("Pasien"),
+          headerCell("Layanan"),
+          headerCell("Dokter"),
+          headerCell("Tanggal"),
+          headerCell("Status"),
+          headerCell("Jenis"),
+          headerCell("Debit"),
+          headerCell("Kredit"),
+          headerCell("Jumlah"),
         ],
         ...monthTransactions.map((tx) => {
           const amount = Number(tx.amount);
           const ledger = ledgerEntry(tx.status, amount);
 
           return [
-            tx.code,
-            tx.patientName,
-            tx.service.name,
-            tx.doctor.name,
-            tx.date,
-            tx.status.replace("_", " "),
-            ledger.type,
-            ledger.debit,
-            ledger.credit,
-            amount,
+            textCell(tx.code),
+            textCell(tx.patientName),
+            textCell(tx.service.name),
+            textCell(tx.doctor.name),
+            dateCell(tx.date),
+            statusCell(tx.status.replace("_", " ")),
+            typeCell(ledger.type),
+            debitCell(ledger.debit),
+            creditCell(ledger.credit),
+            moneyCell(amount),
           ];
         }),
+        [
+          textCell(""),
+          textCell(""),
+          textCell(""),
+          textCell(""),
+          textCell(""),
+          textCell(""),
+          totalLabelCell("TOTAL"),
+          totalMoneyCell(monthlyDebit),
+          totalMoneyCell(monthlyCredit),
+          totalMoneyCell(monthlyDebit + monthlyCredit),
+        ],
       ],
     },
   ];
 
-  const file = workbook(sheets);
+  const file = accountingWorkbook(sheets);
   const filename = `laporan-medicare-pro-${new Date().toISOString().slice(0, 10)}.xls`;
 
   return new NextResponse(file, {
