@@ -1,13 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { useFormStatus } from "react-dom";
 import { Heart, Lock, User, Eye, EyeOff, ArrowRight, ShieldCheck } from "lucide-react";
-import { login } from "@/app/actions";
 
-function SubmitButton() {
-  const { pending } = useFormStatus();
-
+function SubmitButton({ pending }: { pending: boolean }) {
   return (
     <button
       type="submit"
@@ -33,6 +29,7 @@ export default function LoginForm({
   hasError: boolean;
 }) {
   const [showPassword, setShowPassword] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
 
   return (
     <div className="login-page">
@@ -104,7 +101,13 @@ export default function LoginForm({
               <p>Masuk ke akun Anda untuk melanjutkan</p>
             </div>
 
-            <form action={login} className="login-form" id="login-form">
+            <form
+              action="/api/login"
+              method="post"
+              className="login-form"
+              id="login-form"
+              onSubmit={() => setSubmitting(true)}
+            >
               {hasError && (
                 <div className="login-error" id="login-error">
                   <div className="login-error-icon">!</div>
@@ -152,7 +155,7 @@ export default function LoginForm({
                 </div>
               </div>
 
-              <SubmitButton />
+              <SubmitButton pending={submitting} />
             </form>
 
             <div className="login-footer">
