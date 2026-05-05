@@ -68,6 +68,30 @@ function workbook(sheets: Sheet[]) {
 </Workbook>`;
 }
 
+function ledgerEntry(status: TransactionStatus, amount: number) {
+  if (status === TransactionStatus.LUNAS) {
+    return {
+      type: "Debit",
+      debit: amount,
+      credit: 0,
+    };
+  }
+
+  if (status === TransactionStatus.BELUM_LUNAS) {
+    return {
+      type: "Kredit",
+      debit: 0,
+      credit: amount,
+    };
+  }
+
+  return {
+    type: "Batal",
+    debit: 0,
+    credit: 0,
+  };
+}
+
 export async function GET() {
   const isAuthenticated = await verifySessionToken(
     cookies().get(getSessionCookieName())?.value
@@ -96,6 +120,17 @@ export async function GET() {
   const monthlyRevenue = monthTransactions
     .filter((tx) => tx.status === TransactionStatus.LUNAS)
     .reduce((sum, tx) => sum + Number(tx.amount), 0);
+  const monthlyDebit = monthTransactions.reduce(
+    (sum, tx) => sum + ledgerEntry(tx.status, Number(tx.amount)).debit,
+    0
+  );
+  const monthlyCredit = monthTransactions.reduce(
+    (sum, tx) => sum + ledgerEntry(tx.status, Number(tx.amount)).credit,
+    0
+  );
+  const canceledTransactions = monthTransactions.filter(
+    (tx) => tx.status === TransactionStatus.BATAL
+  ).length;
   const serviceData = groupServiceDistribution(monthTransactions);
   const doctorRevenue = groupRevenueByDoctor(monthTransactions);
 
@@ -114,6 +149,11 @@ export async function GET() {
         ],
         ["Transaksi Bulan Ini", monthTransactions.length],
         ["Pendapatan Bulan Ini", monthlyRevenue],
+        ["Total Debit (Lunas)", monthlyDebit],
+        ["Total Kredit (Belum Lunas)", monthlyCredit],
+        ["Transaksi Batal", canceledTransactions],
+        ["Keterangan Debit", "Pembayaran lunas / uang masuk"],
+        ["Keterangan Kredit", "Tagihan belum lunas"],
         ["Layanan Terpopuler", serviceData[0]?.name ?? "-"],
       ],
     },
@@ -134,15 +174,35 @@ export async function GET() {
     {
       name: "Detail Transaksi",
       rows: [
-        ["No", "Pasien", "Layanan", "Dokter", "Tanggal", "Jumlah"],
-        ...monthTransactions.map((tx) => [
-          tx.code,
-          tx.patientName,
-          tx.service.name,
-          tx.doctor.name,
-          tx.date,
-          Number(tx.amount),
-        ]),
+        [
+          "No",
+          "Pasien",
+          "Layanan",
+          "Dokter",
+          "Tanggal",
+          "Status",
+          "Jenis",
+          "Debit",
+          "Kredit",
+          "Jumlah",
+        ],
+        ...monthTransactions.map((tx) => {
+          const amount = Number(tx.amount);
+          const ledger = ledgerEntry(tx.status, amount);
+
+          return [
+            tx.code,
+            tx.patientName,
+            tx.service.name,
+            tx.doctor.name,
+            tx.date,
+            tx.status.replace("_", " "),
+            ledger.type,
+            ledger.debit,
+            ledger.credit,
+            amount,
+          ];
+        }),
       ],
     },
   ];

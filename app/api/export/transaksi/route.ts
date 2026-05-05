@@ -1,5 +1,6 @@
 import { cookies } from "next/headers";
 import { NextRequest, NextResponse } from "next/server";
+import { TransactionStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getSessionCookieName, verifySessionToken } from "@/lib/auth";
 import { formatDate } from "@/lib/format";
@@ -58,6 +59,30 @@ function searchParamsToObject(searchParams: URLSearchParams): TransactionFilterP
   };
 }
 
+function ledgerEntry(status: TransactionStatus, amount: number) {
+  if (status === TransactionStatus.LUNAS) {
+    return {
+      type: "Debit",
+      debit: amount,
+      credit: 0,
+    };
+  }
+
+  if (status === TransactionStatus.BELUM_LUNAS) {
+    return {
+      type: "Kredit",
+      debit: 0,
+      credit: amount,
+    };
+  }
+
+  return {
+    type: "Batal",
+    debit: 0,
+    credit: 0,
+  };
+}
+
 export async function GET(request: NextRequest) {
   const isAuthenticated = await verifySessionToken(
     cookies().get(getSessionCookieName())?.value
@@ -90,6 +115,16 @@ export async function GET(request: NextRequest) {
     (sum, transaction) => sum + Number(transaction.amount),
     0
   );
+  const totalDebit = transactions.reduce(
+    (sum, transaction) =>
+      sum + ledgerEntry(transaction.status, Number(transaction.amount)).debit,
+    0
+  );
+  const totalCredit = transactions.reduce(
+    (sum, transaction) =>
+      sum + ledgerEntry(transaction.status, Number(transaction.amount)).credit,
+    0
+  );
   const file = workbook([
     {
       name: "Ringkasan",
@@ -98,6 +133,10 @@ export async function GET(request: NextRequest) {
         ["Tanggal Export", formatDate(new Date())],
         ["Total Transaksi", transactions.length],
         ["Total Nominal", totalRevenue],
+        ["Total Debit (Lunas)", totalDebit],
+        ["Total Kredit (Belum Lunas)", totalCredit],
+        ["Keterangan Debit", "Pembayaran lunas / uang masuk"],
+        ["Keterangan Kredit", "Tagihan belum lunas"],
         ["Pencarian", filters.searchQuery || "-"],
         ["Status", filters.statusFilter || "-"],
         ["Tanggal Awal", filters.dateFrom || "-"],
@@ -115,20 +154,31 @@ export async function GET(request: NextRequest) {
           "Layanan",
           "Dokter",
           "Status",
+          "Jenis",
+          "Debit",
+          "Kredit",
           "Jumlah",
           "Catatan",
         ],
-        ...transactions.map((transaction) => [
-          transaction.code,
-          transaction.date,
-          transaction.patientName,
-          transaction.complaint,
-          transaction.service.name,
-          transaction.doctor.name,
-          transaction.status.replace("_", " "),
-          Number(transaction.amount),
-          transaction.notes,
-        ]),
+        ...transactions.map((transaction) => {
+          const amount = Number(transaction.amount);
+          const ledger = ledgerEntry(transaction.status, amount);
+
+          return [
+            transaction.code,
+            transaction.date,
+            transaction.patientName,
+            transaction.complaint,
+            transaction.service.name,
+            transaction.doctor.name,
+            transaction.status.replace("_", " "),
+            ledger.type,
+            ledger.debit,
+            ledger.credit,
+            amount,
+            transaction.notes,
+          ];
+        }),
       ],
     },
     {
