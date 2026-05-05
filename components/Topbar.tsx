@@ -3,7 +3,6 @@
 import { FormEvent, useEffect, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Plus, Search } from "lucide-react";
-import MobileNav from "./MobileNav";
 import Link from "next/link";
 import NotificationBell from "@/components/NotificationBell";
 import type { AdminNotification } from "@/lib/admin-notifications";
@@ -60,7 +59,6 @@ export default function Topbar({
     <header className="sticky top-0 z-30 border-b border-slate-200 bg-white/90 backdrop-blur-xl">
       <div className="flex items-center justify-between gap-4 px-4 py-4 sm:px-6 lg:px-8">
         <div className="flex min-w-0 items-center gap-3">
-          <MobileNav notifications={notifications} />
           <div className="min-w-0">
             <h2 className="truncate text-lg font-extrabold text-slate-900 sm:text-xl">{current.title}</h2>
             <p className="hidden truncate text-sm text-slate-500 sm:block">{current.subtitle}</p>
