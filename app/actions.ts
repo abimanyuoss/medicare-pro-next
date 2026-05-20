@@ -24,6 +24,11 @@ import {
   verifyAdminCredentials,
 } from "@/lib/auth";
 
+const WRITE_TRANSACTION_OPTIONS = {
+  maxWait: 10_000,
+  timeout: 20_000,
+};
+
 function required(value: FormDataEntryValue | null, name: string) {
   if (!value || String(value).trim() === "") {
     throw new Error(`${name} wajib diisi`);
@@ -229,7 +234,7 @@ export async function createFinancialActivity(formData: FormData) {
     });
 
     await syncFinancialActivityJournal(tx, activity);
-  });
+  }, WRITE_TRANSACTION_OPTIONS);
 
   revalidateDashboardPages();
   setFlash("Aktivitas keuangan berhasil disimpan", "Jurnal umum otomatis sudah dibuat.");
@@ -254,7 +259,7 @@ export async function updateFinancialActivity(formData: FormData) {
     });
 
     await syncFinancialActivityJournal(tx, activity);
-  });
+  }, WRITE_TRANSACTION_OPTIONS);
 
   revalidateDashboardPages();
   setFlash("Aktivitas keuangan diperbarui", "Jurnal otomatis sudah disesuaikan.");
@@ -269,7 +274,7 @@ export async function deleteFinancialActivity(formData: FormData) {
     await tx.financialActivity.delete({
       where: { id },
     });
-  });
+  }, WRITE_TRANSACTION_OPTIONS);
 
   revalidateDashboardPages();
   setFlash("Aktivitas keuangan dihapus", "Jurnal terkait juga sudah dihapus.");
@@ -603,7 +608,7 @@ export async function createTransaction(formData: FormData) {
         price: item.price,
       })),
     });
-  });
+  }, WRITE_TRANSACTION_OPTIONS);
 
   revalidateDashboardPages();
   setFlash("Transaksi berhasil disimpan", "Data transaksi dan stok obat sudah diperbarui.");
@@ -679,7 +684,7 @@ export async function updateTransactionStatus(formData: FormData) {
     });
 
     await syncTransactionJournal(tx, updatedTransaction);
-  });
+  }, WRITE_TRANSACTION_OPTIONS);
 
   revalidateDashboardPages();
   setFlash("Status transaksi diperbarui", "Perubahan status dan stok obat sudah tersimpan.");
@@ -721,7 +726,7 @@ export async function deleteTransaction(formData: FormData) {
         id,
       },
     });
-  });
+  }, WRITE_TRANSACTION_OPTIONS);
 
   revalidateDashboardPages();
   setFlash("Transaksi berhasil dihapus", "Data transaksi dihapus dan stok obat sudah disesuaikan.");
