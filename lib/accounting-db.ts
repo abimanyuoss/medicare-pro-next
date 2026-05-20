@@ -249,7 +249,6 @@ export async function syncFinancialActivityJournal(
     amount: Prisma.Decimal | number;
   }
 ) {
-  await ensureDefaultAccounts(client);
   await deleteJournalForSource(client, JournalSourceType.FINANCIAL_ACTIVITY, activity.id);
 
   const amount = Number(activity.amount);
@@ -284,7 +283,6 @@ export async function syncTransactionJournal(
     }[];
   }
 ) {
-  await ensureDefaultAccounts(client);
   await deleteJournalForSource(client, JournalSourceType.TRANSACTION, transaction.id);
 
   if (transaction.status === TransactionStatus.BATAL) return;

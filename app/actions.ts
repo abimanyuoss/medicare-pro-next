@@ -215,6 +215,8 @@ export async function deleteAccount(formData: FormData) {
 export async function createFinancialActivity(formData: FormData) {
   const type = toFinancialActivityType(String(formData.get("type") || "MODAL_AWAL"));
 
+  await ensureDefaultAccounts();
+
   await prisma.$transaction(async (tx) => {
     const activity = await tx.financialActivity.create({
       data: {
@@ -237,6 +239,8 @@ export async function createFinancialActivity(formData: FormData) {
 export async function updateFinancialActivity(formData: FormData) {
   const id = required(formData.get("id"), "ID aktivitas");
   const type = toFinancialActivityType(String(formData.get("type") || "MODAL_AWAL"));
+
+  await ensureDefaultAccounts();
 
   await prisma.$transaction(async (tx) => {
     const activity = await tx.financialActivity.update({
@@ -479,6 +483,8 @@ export async function createTransaction(formData: FormData) {
 
   const code = `TRX-${Date.now()}`;
 
+  await ensureDefaultAccounts();
+
   await prisma.$transaction(async (tx) => {
     const [service, doctor] = await Promise.all([
       tx.service.findFirst({
@@ -607,6 +613,8 @@ export async function createTransaction(formData: FormData) {
 export async function updateTransactionStatus(formData: FormData) {
   const id = required(formData.get("id"), "ID transaksi");
   const status = toStatus(String(formData.get("status") || "LUNAS"));
+
+  await ensureDefaultAccounts();
 
   await prisma.$transaction(async (tx) => {
     const transaction = await tx.transaction.findUniqueOrThrow({
