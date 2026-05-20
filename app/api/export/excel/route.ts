@@ -11,12 +11,11 @@ import {
   groupRevenueByDoctor,
   groupServiceDistribution,
 } from "@/lib/analytics";
+import { buildAccountingSheets } from "@/lib/accounting-report";
 import {
   accountingWorkbook,
   blankRow,
-  creditCell,
   dateCell,
-  debitCell,
   type ExcelSheet,
   headerCell,
   moneyCell,
@@ -77,18 +76,20 @@ export async function GET() {
     include: {
       service: true,
       doctor: true,
+      medicines: true,
     },
   });
 
   const monthlyRevenue = monthTransactions
     .filter((tx) => tx.status === TransactionStatus.LUNAS)
     .reduce((sum, tx) => sum + Number(tx.amount), 0);
-  const monthlyDebit = monthTransactions.reduce(
-    (sum, tx) => sum + ledgerEntry(tx.status, Number(tx.amount)).debit,
+  const cashReceived = monthTransactions.reduce(
+    (sum, tx) => sum + (tx.status === TransactionStatus.LUNAS ? Number(tx.amount) : 0),
     0
   );
-  const monthlyCredit = monthTransactions.reduce(
-    (sum, tx) => sum + ledgerEntry(tx.status, Number(tx.amount)).credit,
+  const receivableAmount = monthTransactions.reduce(
+    (sum, tx) =>
+      sum + (tx.status === TransactionStatus.BELUM_LUNAS ? Number(tx.amount) : 0),
     0
   );
   const canceledTransactions = monthTransactions.filter(
@@ -101,22 +102,10 @@ export async function GET() {
     year: "numeric",
   });
   const exportDate = new Date();
-  let runningBalance = 0;
-  const journalRows = monthTransactions.map((tx) => {
-    const amount = Number(tx.amount);
-    const ledger = ledgerEntry(tx.status, amount);
-    runningBalance += ledger.debit - ledger.credit;
-
-    return [
-      dateCell(tx.date),
-      textCell(tx.code),
-      textCell(`${tx.patientName} - ${tx.service.name}`),
-      textCell(ledger.type === "Debit" ? "Kas" : ledger.type === "Kredit" ? "Piutang" : "Batal"),
-      debitCell(ledger.debit),
-      creditCell(ledger.credit),
-      moneyCell(runningBalance),
-      statusCell(tx.status.replace("_", " ")),
-    ];
+  const accounting = buildAccountingSheets({
+    transactions: monthTransactions,
+    reportTitle: "Laporan Keuangan",
+    subtitle: `Periode ${periodLabel} | Dicetak ${formatDate(exportDate)}`,
   });
 
   const sheets: ExcelSheet[] = [
@@ -131,8 +120,8 @@ export async function GET() {
         [headerCell("Metrik"), headerCell("Nilai"), headerCell("Catatan")],
         [textCell("Transaksi Bulan Ini"), numberCell(monthTransactions.length), textCell("Semua status")],
         [textCell("Pendapatan Bulan Ini"), moneyCell(monthlyRevenue), textCell("Hanya transaksi lunas")],
-        [textCell("Total Debit (Lunas)"), debitCell(monthlyDebit), textCell("Pembayaran lunas / uang masuk")],
-        [textCell("Total Kredit (Belum Lunas)"), creditCell(monthlyCredit), textCell("Tagihan belum lunas")],
+        [textCell("Kas Diterima"), moneyCell(cashReceived), textCell("Transaksi lunas")],
+        [textCell("Piutang Usaha"), moneyCell(receivableAmount), textCell("Transaksi belum lunas")],
         [textCell("Transaksi Batal"), numberCell(canceledTransactions), textCell("Tidak masuk debit/kredit")],
         [textCell("Layanan Terpopuler"), textCell(serviceData[0]?.name ?? "-"), textCell("Berdasarkan jumlah kunjungan")],
       ],
@@ -161,36 +150,7 @@ export async function GET() {
         [totalLabelCell("TOTAL"), totalMoneyCell(monthlyRevenue)],
       ],
     },
-    {
-      name: "Jurnal Keuangan",
-      columns: [95, 125, 280, 100, 120, 120, 120, 95],
-      rows: [
-        titleRow("Jurnal Keuangan", 7),
-        subtitleRow("Format debit/kredit dengan saldo berjalan", 7),
-        blankRow(),
-        [
-          headerCell("Tanggal"),
-          headerCell("No Bukti"),
-          headerCell("Keterangan"),
-          headerCell("Akun"),
-          headerCell("Debit"),
-          headerCell("Kredit"),
-          headerCell("Saldo"),
-          headerCell("Status"),
-        ],
-        ...journalRows,
-        [
-          textCell(""),
-          textCell(""),
-          textCell(""),
-          totalLabelCell("TOTAL"),
-          totalMoneyCell(monthlyDebit),
-          totalMoneyCell(monthlyCredit),
-          totalMoneyCell(runningBalance),
-          textCell(""),
-        ],
-      ],
-    },
+    ...accounting.sheets,
     {
       name: "Detail Transaksi",
       columns: [125, 145, 175, 200, 95, 105, 85, 120, 120, 120],
@@ -206,8 +166,8 @@ export async function GET() {
           headerCell("Tanggal"),
           headerCell("Status"),
           headerCell("Jenis"),
-          headerCell("Debit"),
-          headerCell("Kredit"),
+          headerCell("Kas"),
+          headerCell("Piutang"),
           headerCell("Jumlah"),
         ],
         ...monthTransactions.map((tx) => {
@@ -222,8 +182,8 @@ export async function GET() {
             dateCell(tx.date),
             statusCell(tx.status.replace("_", " ")),
             typeCell(ledger.type),
-            debitCell(ledger.debit),
-            creditCell(ledger.credit),
+            moneyCell(ledger.debit),
+            moneyCell(ledger.credit),
             moneyCell(amount),
           ];
         }),
@@ -235,9 +195,9 @@ export async function GET() {
           textCell(""),
           textCell(""),
           totalLabelCell("TOTAL"),
-          totalMoneyCell(monthlyDebit),
-          totalMoneyCell(monthlyCredit),
-          totalMoneyCell(monthlyDebit + monthlyCredit),
+          totalMoneyCell(cashReceived),
+          totalMoneyCell(receivableAmount),
+          totalMoneyCell(cashReceived + receivableAmount),
         ],
       ],
     },

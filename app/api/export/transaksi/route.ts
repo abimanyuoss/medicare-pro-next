@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { getSessionCookieName, verifySessionToken } from "@/lib/auth";
 import { formatDate } from "@/lib/format";
 import { parseTransactionFilters, type TransactionFilterParams } from "@/lib/transaction-filters";
+import { buildAccountingSheets } from "@/lib/accounting-report";
 import {
   accountingWorkbook,
   blankRow,
@@ -112,25 +113,10 @@ export async function GET(request: NextRequest) {
   ]
     .filter(Boolean)
     .join(" | ");
-  const ledgerTransactions = [...transactions].sort(
-    (a, b) => a.date.getTime() - b.date.getTime()
-  );
-  let runningBalance = 0;
-  const journalRows = ledgerTransactions.map((transaction) => {
-    const amount = Number(transaction.amount);
-    const ledger = ledgerEntry(transaction.status, amount);
-    runningBalance += ledger.debit - ledger.credit;
-
-    return [
-      dateCell(transaction.date),
-      textCell(transaction.code),
-      textCell(`${transaction.patientName} - ${transaction.service.name}`),
-      textCell(ledger.type === "Debit" ? "Kas" : ledger.type === "Kredit" ? "Piutang" : "Batal"),
-      debitCell(ledger.debit),
-      creditCell(ledger.credit),
-      moneyCell(runningBalance),
-      statusCell(transaction.status.replace("_", " ")),
-    ];
+  const accounting = buildAccountingSheets({
+    transactions,
+    reportTitle: "Laporan Keuangan",
+    subtitle: `Dicetak ${formatDate(exportDate)}${filterSummary ? ` | ${filterSummary}` : ""}`,
   });
   const medicineRows = transactions.flatMap((transaction) =>
     transaction.medicines.map((item) => {
@@ -169,8 +155,8 @@ export async function GET(request: NextRequest) {
         [headerCell("Metrik"), headerCell("Nilai"), headerCell("Catatan")],
         [textCell("Total Transaksi"), numberCell(transactions.length), textCell("Mengikuti filter halaman transaksi")],
         [textCell("Total Nominal"), moneyCell(totalRevenue), textCell("Debit + kredit, tidak termasuk batal")],
-        [textCell("Total Debit (Lunas)"), debitCell(totalDebit), textCell("Pembayaran lunas / uang masuk")],
-        [textCell("Total Kredit (Belum Lunas)"), creditCell(totalCredit), textCell("Tagihan belum lunas")],
+        [textCell("Kas Diterima"), debitCell(totalDebit), textCell("Transaksi lunas")],
+        [textCell("Piutang Usaha"), creditCell(totalCredit), textCell("Transaksi belum lunas")],
         [textCell("Transaksi Batal"), numberCell(canceledCount), textCell("Tidak masuk debit/kredit")],
         [textCell("Pencarian"), textCell(filters.searchQuery || "-"), textCell("Filter teks")],
         [textCell("Status"), textCell(filters.statusFilter || "-"), textCell("Filter status")],
@@ -178,36 +164,7 @@ export async function GET(request: NextRequest) {
         [textCell("Tanggal Akhir"), textCell(filters.dateTo || "-"), textCell("Filter tanggal")],
       ],
     },
-    {
-      name: "Jurnal Keuangan",
-      columns: [95, 125, 280, 100, 120, 120, 120, 95],
-      rows: [
-        titleRow("Jurnal Keuangan Transaksi", 7),
-        subtitleRow("Format debit/kredit dengan saldo berjalan", 7),
-        blankRow(),
-        [
-          headerCell("Tanggal"),
-          headerCell("No Bukti"),
-          headerCell("Keterangan"),
-          headerCell("Akun"),
-          headerCell("Debit"),
-          headerCell("Kredit"),
-          headerCell("Saldo"),
-          headerCell("Status"),
-        ],
-        ...journalRows,
-        [
-          textCell(""),
-          textCell(""),
-          textCell(""),
-          totalLabelCell("TOTAL"),
-          totalMoneyCell(totalDebit),
-          totalMoneyCell(totalCredit),
-          totalMoneyCell(runningBalance),
-          textCell(""),
-        ],
-      ],
-    },
+    ...accounting.sheets,
     {
       name: "Transaksi",
       columns: [125, 95, 145, 150, 175, 200, 105, 85, 120, 120, 120, 220],
