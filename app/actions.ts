@@ -3,8 +3,20 @@
 import { cookies } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { TransactionStatus } from "@prisma/client";
+import {
+  AccountType,
+  FinancialActivityType,
+  JournalSourceType,
+  NormalBalance,
+  TransactionStatus,
+} from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import {
+  deleteJournalForSource,
+  ensureDefaultAccounts,
+  syncFinancialActivityJournal,
+  syncTransactionJournal,
+} from "@/lib/accounting-db";
 import {
   createSessionToken,
   getSessionCookieName,
@@ -68,6 +80,27 @@ function toStatus(value: string): TransactionStatus {
   return TransactionStatus.LUNAS;
 }
 
+function toAccountType(value: string): AccountType {
+  if (value === "KEWAJIBAN") return AccountType.KEWAJIBAN;
+  if (value === "EKUITAS") return AccountType.EKUITAS;
+  if (value === "PENDAPATAN") return AccountType.PENDAPATAN;
+  if (value === "BEBAN") return AccountType.BEBAN;
+
+  return AccountType.ASET;
+}
+
+function toNormalBalance(value: string): NormalBalance {
+  return value === "KREDIT" ? NormalBalance.KREDIT : NormalBalance.DEBIT;
+}
+
+function toFinancialActivityType(value: string): FinancialActivityType {
+  if (value === "PEMBELIAN_ASET") return FinancialActivityType.PEMBELIAN_ASET;
+  if (value === "BEBAN_OPERASIONAL") return FinancialActivityType.BEBAN_OPERASIONAL;
+  if (value === "PRIVE") return FinancialActivityType.PRIVE;
+
+  return FinancialActivityType.MODAL_AWAL;
+}
+
 function revalidateDashboardPages() {
   revalidatePath("/");
   revalidatePath("/pendapatan");
@@ -77,6 +110,7 @@ function revalidateDashboardPages() {
   revalidatePath("/dokter");
   revalidatePath("/laporan");
   revalidatePath("/obat");
+  revalidatePath("/akuntansi");
 }
 
 function setFlash(title: string, description?: string) {
@@ -120,6 +154,122 @@ export async function login(formData: FormData) {
 export async function logout() {
   cookies().delete(getSessionCookieName());
   redirect("/login");
+}
+
+export async function seedDefaultAccounts() {
+  await ensureDefaultAccounts();
+
+  revalidateDashboardPages();
+  setFlash("Daftar akun siap", "Akun standar akuntansi sudah tersedia.");
+  flashRedirect("/akuntansi");
+}
+
+export async function createAccount(formData: FormData) {
+  await prisma.account.create({
+    data: {
+      code: required(formData.get("code"), "Kode akun"),
+      name: required(formData.get("name"), "Nama akun"),
+      type: toAccountType(String(formData.get("type") || "ASET")),
+      normalBalance: toNormalBalance(String(formData.get("normalBalance") || "DEBIT")),
+      statement: required(formData.get("statement"), "Laporan"),
+    },
+  });
+
+  revalidateDashboardPages();
+  setFlash("Akun berhasil disimpan", "Kode dan nama akun sudah masuk ke chart of accounts.");
+  flashRedirect("/akuntansi");
+}
+
+export async function updateAccount(formData: FormData) {
+  const id = required(formData.get("id"), "ID akun");
+
+  await prisma.account.update({
+    where: { id },
+    data: {
+      code: required(formData.get("code"), "Kode akun"),
+      name: required(formData.get("name"), "Nama akun"),
+      type: toAccountType(String(formData.get("type") || "ASET")),
+      normalBalance: toNormalBalance(String(formData.get("normalBalance") || "DEBIT")),
+      statement: required(formData.get("statement"), "Laporan"),
+    },
+  });
+
+  revalidateDashboardPages();
+  setFlash("Akun berhasil diperbarui", "Perubahan chart of accounts sudah tersimpan.");
+  flashRedirect("/akuntansi");
+}
+
+export async function deleteAccount(formData: FormData) {
+  const id = required(formData.get("id"), "ID akun");
+
+  await prisma.account.update({
+    where: { id },
+    data: { active: false },
+  });
+
+  revalidateDashboardPages();
+  setFlash("Akun dinonaktifkan", "Akun tidak tampil lagi di daftar aktif.");
+  flashRedirect("/akuntansi");
+}
+
+export async function createFinancialActivity(formData: FormData) {
+  const type = toFinancialActivityType(String(formData.get("type") || "MODAL_AWAL"));
+
+  await prisma.$transaction(async (tx) => {
+    const activity = await tx.financialActivity.create({
+      data: {
+        code: `AKT-${Date.now()}`,
+        type,
+        date: toDate(formData.get("date"), "Tanggal"),
+        description: required(formData.get("description"), "Keterangan"),
+        amount: toNumber(formData.get("amount"), "Jumlah", 1),
+      },
+    });
+
+    await syncFinancialActivityJournal(tx, activity);
+  });
+
+  revalidateDashboardPages();
+  setFlash("Aktivitas keuangan berhasil disimpan", "Jurnal umum otomatis sudah dibuat.");
+  flashRedirect("/akuntansi");
+}
+
+export async function updateFinancialActivity(formData: FormData) {
+  const id = required(formData.get("id"), "ID aktivitas");
+  const type = toFinancialActivityType(String(formData.get("type") || "MODAL_AWAL"));
+
+  await prisma.$transaction(async (tx) => {
+    const activity = await tx.financialActivity.update({
+      where: { id },
+      data: {
+        type,
+        date: toDate(formData.get("date"), "Tanggal"),
+        description: required(formData.get("description"), "Keterangan"),
+        amount: toNumber(formData.get("amount"), "Jumlah", 1),
+      },
+    });
+
+    await syncFinancialActivityJournal(tx, activity);
+  });
+
+  revalidateDashboardPages();
+  setFlash("Aktivitas keuangan diperbarui", "Jurnal otomatis sudah disesuaikan.");
+  flashRedirect("/akuntansi");
+}
+
+export async function deleteFinancialActivity(formData: FormData) {
+  const id = required(formData.get("id"), "ID aktivitas");
+
+  await prisma.$transaction(async (tx) => {
+    await deleteJournalForSource(tx, JournalSourceType.FINANCIAL_ACTIVITY, id);
+    await tx.financialActivity.delete({
+      where: { id },
+    });
+  });
+
+  revalidateDashboardPages();
+  setFlash("Aktivitas keuangan dihapus", "Jurnal terkait juga sudah dihapus.");
+  flashRedirect("/akuntansi");
 }
 
 export async function createDoctor(formData: FormData) {
@@ -413,7 +563,7 @@ export async function createTransaction(formData: FormData) {
       }
     }
 
-    await tx.transaction.create({
+    const createdTransaction = await tx.transaction.create({
       data: {
         code,
         patientName,
@@ -429,6 +579,23 @@ export async function createTransaction(formData: FormData) {
           create: medicineCreateData,
         },
       },
+    });
+
+    await syncTransactionJournal(tx, {
+      id: createdTransaction.id,
+      code: createdTransaction.code,
+      patientName: createdTransaction.patientName,
+      status: createdTransaction.status,
+      date: createdTransaction.date,
+      amount: createdTransaction.amount,
+      service: {
+        name: service.name,
+        price: service.price,
+      },
+      medicines: medicineCreateData.map((item) => ({
+        quantity: item.quantity,
+        price: item.price,
+      })),
     });
   });
 
@@ -448,6 +615,7 @@ export async function updateTransactionStatus(formData: FormData) {
       },
       include: {
         medicines: true,
+        service: true,
       },
     });
 
@@ -489,14 +657,20 @@ export async function updateTransactionStatus(formData: FormData) {
       }
     }
 
-    await tx.transaction.update({
+    const updatedTransaction = await tx.transaction.update({
       where: {
         id,
       },
       data: {
         status,
       },
+      include: {
+        service: true,
+        medicines: true,
+      },
     });
+
+    await syncTransactionJournal(tx, updatedTransaction);
   });
 
   revalidateDashboardPages();
@@ -531,6 +705,8 @@ export async function deleteTransaction(formData: FormData) {
         });
       }
     }
+
+    await deleteJournalForSource(tx, JournalSourceType.TRANSACTION, id);
 
     await tx.transaction.delete({
       where: {

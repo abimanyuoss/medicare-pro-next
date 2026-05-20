@@ -56,7 +56,21 @@ type JournalLine = {
   account: Account;
   debit: number;
   credit: number;
-  status: TransactionStatus;
+  status: TransactionStatus | string;
+};
+
+export type AdditionalAccountingLine = {
+  date: Date;
+  code: string;
+  description: string;
+  accountCode: string;
+  accountName: string;
+  accountType: AccountType;
+  normalBalance: NormalBalance;
+  statement: string;
+  debit: number;
+  credit: number;
+  status?: string;
 };
 
 const ACCOUNTS = {
@@ -74,12 +88,26 @@ const ACCOUNTS = {
     normalBalance: "Debit",
     statement: "Neraca",
   },
+  equipment: {
+    code: "103",
+    name: "Peralatan Klinik",
+    type: "Aset",
+    normalBalance: "Debit",
+    statement: "Neraca",
+  },
   capital: {
     code: "301",
     name: "Modal Pemilik",
     type: "Ekuitas",
     normalBalance: "Kredit",
     statement: "Perubahan Modal / Neraca",
+  },
+  ownerDraw: {
+    code: "302",
+    name: "Prive",
+    type: "Ekuitas",
+    normalBalance: "Debit",
+    statement: "Perubahan Modal",
   },
   retainedEarnings: {
     code: "399",
@@ -142,8 +170,8 @@ function serviceRevenue(transaction: AccountingTransaction) {
   return roundCurrency(toNumber(transaction.service.price));
 }
 
-function statusText(status: TransactionStatus) {
-  return status.replace("_", " ");
+function statusText(status: TransactionStatus | string) {
+  return String(status).replace("_", " ");
 }
 
 function accountBalance(account: Account, debit: number, credit: number) {
@@ -219,9 +247,32 @@ function transactionJournalLines(transaction: AccountingTransaction): JournalLin
   return lines;
 }
 
-function buildJournal(transactions: AccountingTransaction[]) {
+function additionalJournalLines(lines: AdditionalAccountingLine[]): JournalLine[] {
+  return lines.map((line) => ({
+    date: line.date,
+    code: line.code,
+    patientName: "-",
+    description: line.description,
+    account: {
+      code: line.accountCode,
+      name: line.accountName,
+      type: line.accountType,
+      normalBalance: line.normalBalance,
+      statement: line.statement,
+    },
+    debit: line.debit,
+    credit: line.credit,
+    status: line.status ?? "Aktivitas",
+  }));
+}
+
+function buildJournal(
+  transactions: AccountingTransaction[],
+  additionalLines: AdditionalAccountingLine[] = []
+) {
   return transactions
     .flatMap(transactionJournalLines)
+    .concat(additionalJournalLines(additionalLines))
     .sort((a, b) => a.date.getTime() - b.date.getTime() || a.code.localeCompare(b.code));
 }
 
@@ -420,16 +471,17 @@ function buildTrialBalanceSheet(lines: JournalLine[], title: string, subtitle: s
 function buildFinancialStatementsSheet(lines: JournalLine[], title: string, subtitle: string): ExcelSheet {
   const cash = totalsForAccount(lines, ACCOUNTS.cash).balance;
   const receivable = totalsForAccount(lines, ACCOUNTS.receivable).balance;
+  const equipment = totalsForAccount(lines, ACCOUNTS.equipment).balance;
+  const beginningCapital = totalsForAccount(lines, ACCOUNTS.capital).balance;
+  const ownerDraw = totalsForAccount(lines, ACCOUNTS.ownerDraw).balance;
   const serviceRevenue = totalsForAccount(lines, ACCOUNTS.serviceRevenue).balance;
   const medicineRevenue = totalsForAccount(lines, ACCOUNTS.medicineRevenue).balance;
   const otherRevenue = totalsForAccount(lines, ACCOUNTS.otherRevenue).balance;
   const operatingExpense = totalsForAccount(lines, ACCOUNTS.operatingExpense).balance;
   const totalRevenue = serviceRevenue + medicineRevenue + otherRevenue;
   const netIncome = totalRevenue - operatingExpense;
-  const beginningCapital = 0;
-  const ownerDraw = 0;
   const endingCapital = beginningCapital + netIncome - ownerDraw;
-  const totalAssets = cash + receivable;
+  const totalAssets = cash + receivable + equipment;
 
   return {
     name: "Laporan Keuangan",
@@ -458,6 +510,7 @@ function buildFinancialStatementsSheet(lines: JournalLine[], title: string, subt
       [headerCell("Aset"), headerCell("Jumlah"), headerCell("Ekuitas"), headerCell("Jumlah")],
       [textCell("Kas"), moneyCell(cash), textCell("Modal Akhir"), moneyCell(endingCapital)],
       [textCell("Piutang Usaha"), moneyCell(receivable), textCell(""), moneyCell(0)],
+      [textCell("Peralatan Klinik"), moneyCell(equipment), textCell(""), moneyCell(0)],
       [totalLabelCell("Total Aset"), totalMoneyCell(totalAssets), totalLabelCell("Total Ekuitas"), totalMoneyCell(endingCapital)],
     ],
   };
@@ -467,12 +520,14 @@ export function buildAccountingSheets({
   transactions,
   reportTitle,
   subtitle,
+  additionalLines = [],
 }: {
   transactions: AccountingTransaction[];
   reportTitle: string;
   subtitle: string;
+  additionalLines?: AdditionalAccountingLine[];
 }) {
-  const lines = buildJournal(transactions);
+  const lines = buildJournal(transactions, additionalLines);
 
   return {
     lines,

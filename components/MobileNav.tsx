@@ -12,6 +12,7 @@ import {
   Pill,
   Stethoscope,
   FileText,
+  Landmark,
   Menu,
   X,
   LogOut,
@@ -56,6 +57,11 @@ const menus = [
     title: "Dokter",
     href: "/dokter",
     icon: Stethoscope,
+  },
+  {
+    title: "Akuntansi",
+    href: "/akuntansi",
+    icon: Landmark,
   },
   {
     title: "Laporan",

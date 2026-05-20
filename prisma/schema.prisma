@@ -13,6 +13,32 @@ enum TransactionStatus {
   BATAL
 }
 
+enum AccountType {
+  ASET
+  KEWAJIBAN
+  EKUITAS
+  PENDAPATAN
+  BEBAN
+}
+
+enum NormalBalance {
+  DEBIT
+  KREDIT
+}
+
+enum FinancialActivityType {
+  MODAL_AWAL
+  PEMBELIAN_ASET
+  BEBAN_OPERASIONAL
+  PRIVE
+}
+
+enum JournalSourceType {
+  TRANSACTION
+  FINANCIAL_ACTIVITY
+  MANUAL
+}
+
 model Doctor {
   id           String        @id @default(cuid())
   name         String
@@ -104,4 +130,62 @@ model Transaction {
   @@index([date])
   @@index([status])
   @@map("transactions")
+}
+
+model Account {
+  id            String        @id @default(cuid())
+  code          String        @unique
+  name          String
+  type          AccountType
+  normalBalance NormalBalance
+  statement     String
+  active        Boolean       @default(true)
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  journalLines  JournalLine[]
+
+  @@map("accounts")
+}
+
+model JournalEntry {
+  id          String            @id @default(cuid())
+  code        String            @unique
+  date        DateTime
+  description String
+  sourceType  JournalSourceType @default(MANUAL)
+  sourceId    String?
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+  lines       JournalLine[]
+
+  @@index([date])
+  @@index([sourceType, sourceId])
+  @@map("journal_entries")
+}
+
+model JournalLine {
+  id             String       @id @default(cuid())
+  journalEntryId String
+  journalEntry   JournalEntry @relation(fields: [journalEntryId], references: [id], onDelete: Cascade)
+  accountId      String
+  account        Account      @relation(fields: [accountId], references: [id])
+  debit          Decimal      @default(0) @db.Decimal(12, 2)
+  credit         Decimal      @default(0) @db.Decimal(12, 2)
+
+  @@map("journal_lines")
+}
+
+model FinancialActivity {
+  id          String                @id @default(cuid())
+  code        String                @unique
+  type        FinancialActivityType
+  date        DateTime
+  description String
+  amount      Decimal               @db.Decimal(12, 2)
+  createdAt   DateTime              @default(now())
+  updatedAt   DateTime              @updatedAt
+
+  @@index([date])
+  @@index([type])
+  @@map("financial_activities")
 }

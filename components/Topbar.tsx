@@ -14,6 +14,7 @@ const titles: Record<string, { title: string; subtitle: string }> = {
   "/transaksi": { title: "Transaksi", subtitle: "Kelola pembayaran dan layanan pasien" },
   "/layanan": { title: "Layanan", subtitle: "Kelola daftar layanan klinik" },
   "/dokter": { title: "Dokter", subtitle: "Kelola data dokter dan jadwal praktik" },
+  "/akuntansi": { title: "Akuntansi", subtitle: "Kelola akun, aktivitas keuangan, dan jurnal" },
   "/laporan": { title: "Laporan", subtitle: "Rekap data untuk kebutuhan administrasi" }
 };
 

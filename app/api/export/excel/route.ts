@@ -1,6 +1,6 @@
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
-import { TransactionStatus } from "@prisma/client";
+import { JournalSourceType, TransactionStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import {
   getSessionCookieName,
@@ -12,6 +12,7 @@ import {
   groupServiceDistribution,
 } from "@/lib/analytics";
 import { buildAccountingSheets } from "@/lib/accounting-report";
+import { journalEntriesToAccountingLines } from "@/lib/accounting-export";
 import {
   accountingWorkbook,
   blankRow,
@@ -64,21 +65,42 @@ export async function GET() {
     return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
   }
 
-  const monthTransactions = await prisma.transaction.findMany({
-    where: {
-      date: {
-        gte: getStartOfMonth(),
+  const startOfMonth = getStartOfMonth();
+  const [monthTransactions, activityJournalEntries] = await Promise.all([
+    prisma.transaction.findMany({
+      where: {
+        date: {
+          gte: startOfMonth,
+        },
       },
-    },
-    orderBy: {
-      date: "asc",
-    },
-    include: {
-      service: true,
-      doctor: true,
-      medicines: true,
-    },
-  });
+      orderBy: {
+        date: "asc",
+      },
+      include: {
+        service: true,
+        doctor: true,
+        medicines: true,
+      },
+    }),
+    prisma.journalEntry.findMany({
+      where: {
+        sourceType: JournalSourceType.FINANCIAL_ACTIVITY,
+        date: {
+          gte: startOfMonth,
+        },
+      },
+      orderBy: {
+        date: "asc",
+      },
+      include: {
+        lines: {
+          include: {
+            account: true,
+          },
+        },
+      },
+    }),
+  ]);
 
   const monthlyRevenue = monthTransactions
     .filter((tx) => tx.status === TransactionStatus.LUNAS)
@@ -106,6 +128,7 @@ export async function GET() {
     transactions: monthTransactions,
     reportTitle: "Laporan Keuangan",
     subtitle: `Periode ${periodLabel} | Dicetak ${formatDate(exportDate)}`,
+    additionalLines: journalEntriesToAccountingLines(activityJournalEntries),
   });
 
   const sheets: ExcelSheet[] = [

@@ -8,6 +8,7 @@ import {
   ClipboardList,
   CreditCard,
   FileText,
+  Landmark,
   LayoutDashboard,
   LogOut,
   Pill,
@@ -26,6 +27,7 @@ const menus = [
   { title: "Layanan", href: "/layanan", icon: TestTube2 },
   { title: "Obat", href: "/obat", icon: Pill },
   { title: "Dokter", href: "/dokter", icon: Stethoscope },
+  { title: "Akuntansi", href: "/akuntansi", icon: Landmark },
   { title: "Laporan", href: "/laporan", icon: FileText }
 ];
 
