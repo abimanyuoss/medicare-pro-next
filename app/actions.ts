@@ -118,8 +118,9 @@ function revalidateDashboardPages() {
   revalidatePath("/akuntansi");
 }
 
-function setFlash(title: string, description?: string) {
-  cookies().set(
+async function setFlash(title: string, description?: string) {
+  const cookieStore = await cookies();
+  cookieStore.set(
     "medicare_flash",
     encodeURIComponent(JSON.stringify({ title, description })),
     {
@@ -144,7 +145,8 @@ export async function login(formData: FormData) {
   }
 
   const sessionToken = await createSessionToken(username);
-  cookies().set(getSessionCookieName(), sessionToken, {
+  const cookieStore = await cookies();
+  cookieStore.set(getSessionCookieName(), sessionToken, {
     httpOnly: true,
     sameSite: "lax",
     secure: process.env.NODE_ENV === "production",
@@ -152,12 +154,13 @@ export async function login(formData: FormData) {
     maxAge: getSessionMaxAge(),
   });
 
-  setFlash("Login berhasil", "Selamat datang kembali di MediCare Pro.");
+  await setFlash("Login berhasil", "Selamat datang kembali di MediCare Pro.");
   flashRedirect("/");
 }
 
 export async function logout() {
-  cookies().delete(getSessionCookieName());
+  const cookieStore = await cookies();
+  cookieStore.delete(getSessionCookieName());
   redirect("/login");
 }
 
@@ -165,7 +168,7 @@ export async function seedDefaultAccounts() {
   await ensureDefaultAccounts();
 
   revalidateDashboardPages();
-  setFlash("Daftar akun siap", "Akun standar akuntansi sudah tersedia.");
+  await setFlash("Daftar akun siap", "Akun standar akuntansi sudah tersedia.");
   flashRedirect("/akuntansi");
 }
 
@@ -181,7 +184,7 @@ export async function createAccount(formData: FormData) {
   });
 
   revalidateDashboardPages();
-  setFlash("Akun berhasil disimpan", "Kode dan nama akun sudah masuk ke chart of accounts.");
+  await setFlash("Akun berhasil disimpan", "Kode dan nama akun sudah masuk ke chart of accounts.");
   flashRedirect("/akuntansi");
 }
 
@@ -200,7 +203,7 @@ export async function updateAccount(formData: FormData) {
   });
 
   revalidateDashboardPages();
-  setFlash("Akun berhasil diperbarui", "Perubahan chart of accounts sudah tersimpan.");
+  await setFlash("Akun berhasil diperbarui", "Perubahan chart of accounts sudah tersimpan.");
   flashRedirect("/akuntansi");
 }
 
@@ -213,7 +216,7 @@ export async function deleteAccount(formData: FormData) {
   });
 
   revalidateDashboardPages();
-  setFlash("Akun dinonaktifkan", "Akun tidak tampil lagi di daftar aktif.");
+  await setFlash("Akun dinonaktifkan", "Akun tidak tampil lagi di daftar aktif.");
   flashRedirect("/akuntansi");
 }
 
@@ -237,7 +240,7 @@ export async function createFinancialActivity(formData: FormData) {
   }, WRITE_TRANSACTION_OPTIONS);
 
   revalidateDashboardPages();
-  setFlash("Aktivitas keuangan berhasil disimpan", "Jurnal umum otomatis sudah dibuat.");
+  await setFlash("Aktivitas keuangan berhasil disimpan", "Jurnal umum otomatis sudah dibuat.");
   flashRedirect("/akuntansi");
 }
 
@@ -262,7 +265,7 @@ export async function updateFinancialActivity(formData: FormData) {
   }, WRITE_TRANSACTION_OPTIONS);
 
   revalidateDashboardPages();
-  setFlash("Aktivitas keuangan diperbarui", "Jurnal otomatis sudah disesuaikan.");
+  await setFlash("Aktivitas keuangan diperbarui", "Jurnal otomatis sudah disesuaikan.");
   flashRedirect("/akuntansi");
 }
 
@@ -277,7 +280,7 @@ export async function deleteFinancialActivity(formData: FormData) {
   }, WRITE_TRANSACTION_OPTIONS);
 
   revalidateDashboardPages();
-  setFlash("Aktivitas keuangan dihapus", "Jurnal terkait juga sudah dihapus.");
+  await setFlash("Aktivitas keuangan dihapus", "Jurnal terkait juga sudah dihapus.");
   flashRedirect("/akuntansi");
 }
 
@@ -292,7 +295,7 @@ export async function createDoctor(formData: FormData) {
   });
 
   revalidateDashboardPages();
-  setFlash("Dokter berhasil disimpan", "Data dokter baru sudah masuk ke sistem.");
+  await setFlash("Dokter berhasil disimpan", "Data dokter baru sudah masuk ke sistem.");
   flashRedirect("/dokter");
 }
 
@@ -309,7 +312,7 @@ export async function deleteDoctor(formData: FormData) {
   });
 
   revalidateDashboardPages();
-  setFlash("Dokter berhasil dihapus", "Data dokter dipindahkan dari daftar aktif.");
+  await setFlash("Dokter berhasil dihapus", "Data dokter dipindahkan dari daftar aktif.");
   flashRedirect("/dokter");
 }
 
@@ -329,7 +332,7 @@ export async function updateDoctor(formData: FormData) {
   });
 
   revalidateDashboardPages();
-  setFlash("Dokter berhasil diperbarui", "Perubahan data dokter sudah tersimpan.");
+  await setFlash("Dokter berhasil diperbarui", "Perubahan data dokter sudah tersimpan.");
   flashRedirect("/dokter");
 }
 
@@ -344,7 +347,7 @@ export async function createService(formData: FormData) {
   });
 
   revalidateDashboardPages();
-  setFlash("Layanan berhasil disimpan", "Data layanan baru sudah masuk ke sistem.");
+  await setFlash("Layanan berhasil disimpan", "Data layanan baru sudah masuk ke sistem.");
   flashRedirect("/layanan");
 }
 
@@ -361,7 +364,7 @@ export async function deleteService(formData: FormData) {
   });
 
   revalidateDashboardPages();
-  setFlash("Layanan berhasil dihapus", "Data layanan dipindahkan dari daftar aktif.");
+  await setFlash("Layanan berhasil dihapus", "Data layanan dipindahkan dari daftar aktif.");
   flashRedirect("/layanan");
 }
 
@@ -381,7 +384,7 @@ export async function updateService(formData: FormData) {
   });
 
   revalidateDashboardPages();
-  setFlash("Layanan berhasil diperbarui", "Perubahan data layanan sudah tersimpan.");
+  await setFlash("Layanan berhasil diperbarui", "Perubahan data layanan sudah tersimpan.");
   flashRedirect("/layanan");
 }
 
@@ -399,7 +402,7 @@ export async function createMedicine(formData: FormData) {
   });
 
   revalidateDashboardPages();
-  setFlash("Obat berhasil disimpan", "Data obat baru sudah masuk ke sistem.");
+  await setFlash("Obat berhasil disimpan", "Data obat baru sudah masuk ke sistem.");
   flashRedirect("/obat");
 }
 
@@ -422,7 +425,7 @@ export async function updateMedicine(formData: FormData) {
   });
 
   revalidateDashboardPages();
-  setFlash("Obat berhasil diperbarui", "Perubahan data obat sudah tersimpan.");
+  await setFlash("Obat berhasil diperbarui", "Perubahan data obat sudah tersimpan.");
   flashRedirect("/obat");
 }
 
@@ -442,7 +445,7 @@ export async function addMedicineStock(formData: FormData) {
   });
 
   revalidateDashboardPages();
-  setFlash("Stok obat berhasil ditambah", `${amount} stok sudah masuk ke inventori.`);
+  await setFlash("Stok obat berhasil ditambah", `${amount} stok sudah masuk ke inventori.`);
   flashRedirect("/obat");
 }
 
@@ -459,7 +462,7 @@ export async function deleteMedicine(formData: FormData) {
   });
 
   revalidateDashboardPages();
-  setFlash("Obat berhasil dihapus", "Data obat dipindahkan dari daftar aktif.");
+  await setFlash("Obat berhasil dihapus", "Data obat dipindahkan dari daftar aktif.");
   flashRedirect("/obat");
 }
 
@@ -611,7 +614,7 @@ export async function createTransaction(formData: FormData) {
   }, WRITE_TRANSACTION_OPTIONS);
 
   revalidateDashboardPages();
-  setFlash("Transaksi berhasil disimpan", "Data transaksi dan stok obat sudah diperbarui.");
+  await setFlash("Transaksi berhasil disimpan", "Data transaksi dan stok obat sudah diperbarui.");
   flashRedirect("/transaksi");
 }
 
@@ -687,7 +690,7 @@ export async function updateTransactionStatus(formData: FormData) {
   }, WRITE_TRANSACTION_OPTIONS);
 
   revalidateDashboardPages();
-  setFlash("Status transaksi diperbarui", "Perubahan status dan stok obat sudah tersimpan.");
+  await setFlash("Status transaksi diperbarui", "Perubahan status dan stok obat sudah tersimpan.");
   flashRedirect("/transaksi");
 }
 
@@ -729,6 +732,6 @@ export async function deleteTransaction(formData: FormData) {
   }, WRITE_TRANSACTION_OPTIONS);
 
   revalidateDashboardPages();
-  setFlash("Transaksi berhasil dihapus", "Data transaksi dihapus dan stok obat sudah disesuaikan.");
+  await setFlash("Transaksi berhasil dihapus", "Data transaksi dihapus dan stok obat sudah disesuaikan.");
   flashRedirect("/transaksi");
 }

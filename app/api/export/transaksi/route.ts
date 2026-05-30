@@ -63,8 +63,9 @@ function ledgerEntry(status: TransactionStatus, amount: number) {
 }
 
 export async function GET(request: NextRequest) {
+  const cookieStore = await cookies();
   const isAuthenticated = await verifySessionToken(
-    cookies().get(getSessionCookieName())?.value
+    cookieStore.get(getSessionCookieName())?.value
   );
 
   if (!isAuthenticated) {

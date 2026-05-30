@@ -1,0 +1,10 @@
+.env
+.env.local
+.next
+node_modules
+tmp_render
+artikel_uas_render
+*.docx
+*.pdf
+*.log
+tsconfig.tsbuildinfo
