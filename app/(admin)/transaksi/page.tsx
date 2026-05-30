@@ -36,9 +36,10 @@ function statusClass(status: TransactionStatus) {
 export default async function TransaksiPage({
   searchParams,
 }: {
-  searchParams?: TransactionFilterParams;
+  searchParams?: Promise<TransactionFilterParams>;
 }) {
-  const filters = parseTransactionFilters(searchParams);
+  const resolvedSearchParams = searchParams ? await searchParams : undefined;
+  const filters = parseTransactionFilters(resolvedSearchParams);
   const {
     searchQuery,
     statusFilter,

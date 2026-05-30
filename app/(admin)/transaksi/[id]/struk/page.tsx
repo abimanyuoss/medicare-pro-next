@@ -7,13 +7,14 @@ import PrintButton from "@/components/PrintButton";
 export default async function StrukTransaksiPage({
   params,
 }: {
-  params: {
+  params: Promise<{
     id: string;
-  };
+  }>;
 }) {
+  const resolvedParams = await params;
   const transaction = await prisma.transaction.findUnique({
     where: {
-      id: params.id,
+      id: resolvedParams.id,
     },
     include: {
       doctor: true,

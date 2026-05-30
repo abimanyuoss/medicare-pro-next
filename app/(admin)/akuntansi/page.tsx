@@ -60,9 +60,10 @@ const validTabIds = new Set([
 export default async function AkuntansiPage({
   searchParams,
 }: {
-  searchParams: { tab?: string };
+  searchParams: Promise<{ tab?: string }>;
 }) {
-  const requestedTab = searchParams?.tab || "overview";
+  const resolvedSearchParams = await searchParams;
+  const requestedTab = resolvedSearchParams?.tab || "overview";
   const activeTab = validTabIds.has(requestedTab) ? requestedTab : "overview";
 
   const accountCount = await prisma.account.count();

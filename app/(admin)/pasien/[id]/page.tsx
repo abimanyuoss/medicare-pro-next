@@ -13,13 +13,14 @@ function statusClass(status: TransactionStatus) {
 export default async function RiwayatPasienPage({
   params,
 }: {
-  params: {
+  params: Promise<{
     id: string;
-  };
+  }>;
 }) {
+  const resolvedParams = await params;
   const patient = await prisma.patient.findUnique({
     where: {
-      id: params.id,
+      id: resolvedParams.id,
     },
   });
 
